@@ -96,7 +96,7 @@ squid_game_cookie_menu := class(cursor_menu):
                             CookieElement := cookie_outline_shape[Element]
                             set ClickedPoints[CookieElement] = true
                         if:
-                            ClickedPoints.Length = NumPoints
+                            ClickedPoints.Length >= NumPoints - 1
                         then:
                             CompletedTrigger.Trigger(Clicker)
                             break
