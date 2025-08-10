@@ -1,5 +1,7 @@
 using { /Fortnite.com/Devices }
+using { /UnrealEngine.com/Temporary/UI }
 using { /Verse.org/Simulation }
+
 
 
 squid_game_cookie_manager := class(creative_device):
@@ -17,14 +19,30 @@ squid_game_cookie_manager := class(creative_device):
     CursorManager : cursor_manager_device =cursor_manager_device{}
 
     @editable
-    OpenButton : button_device = button_device{}
+    CircleButton : button_device = button_device{}
+
+    @editable
+    StarButton : button_device = button_device{}
+
+    @editable
+    SquareButton : button_device = button_device{}
+
+    @editable
+    TriangleButton : button_device = button_device{}
+
+    @editable
+    Lines : []line = array{}
 
     OnBegin<override>()<suspends>:void=
-        OpenButton.InteractedWithEvent.Subscribe(HandleOpenMenu)
+        CircleButton.InteractedWithEvent.Subscribe(callBack(shapes){Arg:=shapes.Circle,Func:=HandleOpenMenu}.Invoke)
+        SquareButton.InteractedWithEvent.Subscribe(callBack(shapes){Arg:=shapes.Square,Func:=HandleOpenMenu}.Invoke)
+        TriangleButton.InteractedWithEvent.Subscribe(callBack(shapes){Arg:=shapes.Triangle,Func:=HandleOpenMenu}.Invoke)
+        StarButton.InteractedWithEvent.Subscribe(callBack(shapes){Arg:=shapes.Star,Func:=HandleOpenMenu}.Invoke)
+        
         CompletedTrigger.TriggeredEvent.Subscribe(OnCompleted)
         FailedTrigger.TriggeredEvent.Subscribe(OnFailed)
 
-    HandleOpenMenu(Agent : agent):void=
+    HandleOpenMenu(Agent : agent, Shape : shapes):void=
         if:
             Player := player[Agent]
         then:
@@ -33,7 +51,8 @@ squid_game_cookie_manager := class(creative_device):
                 CompletedTrigger:=CompletedTrigger
                 FailedTrigger:=FailedTrigger
                 LeftClickInput:=LeftClickInput
-                
+                Shape:=Shape
+                Lines := Lines
             spawn{CursorManager.HandleCursorMenu(Player,CookieGame)}
 
     OnCompleted(MaybeAgent : ?agent):void=

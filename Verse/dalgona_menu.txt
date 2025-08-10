@@ -1,3 +1,4 @@
+using { /Fortnite.com/Characters }
 using { /Fortnite.com/Devices }
 using { /UnrealEngine.com/Temporary/SpatialMath }
 using { /UnrealEngine.com/Temporary/UI }
@@ -5,6 +6,22 @@ using { /Verse.org/Assets }
 using { /Verse.org/Colors }
 using { /Verse.org/Simulation }
 
+shapes := enum:
+    Circle
+    Square
+    Triangle
+    Star
+    Custom
+
+line := class<concrete>:
+    @editable
+    Start : vector2 = vector2{}
+    
+    @editable
+    End : vector2 = vector2{}
+
+    @editable
+    Interval : int = 20
 
 cookie_outline_shape := class(colored_shape):
 
@@ -38,7 +55,8 @@ needle_cursor := class(cursor):
 
     CursorTexture<override> : texture = Textures.Needle 
     CursorHoverTexture<override> : texture = Textures.Needle 
-    
+    var CursorTextureBlock<override> : texture_block = texture_block{DefaultImage :=Textures.Needle}
+
     block:
         set CursorTextureBlock = texture_block{DefaultImage :=CursorTexture,DefaultDesiredSize:=Size}
 
@@ -53,23 +71,62 @@ squid_game_cookie_menu := class(cursor_menu):
     NumPoints : int = 100
     Radius : float = 300.0
 
+    SquareSize : vector2 = vector2{X:=40.0,Y:=40.0}
+
     CompletedTrigger : trigger_device
     FailedTrigger : trigger_device
 
-    var ClickedPoints : [cookie_outline_shape]logic = map{}
+    Shape : shapes
+    Lines : []line = array{}
 
-    Cursor<override> : needle_cursor = needle_cursor{Layer:=999,Size:=vector2{X:=400.0,Y:=400.0}}
+    var ClickedPoints : [cookie_outline_shape]logic = map{}
+    var NumShapes : int = 0
+
+    Cursor<override> : needle_cursor = needle_cursor{Layer:=999,Size:=vector2{X:=400.0,Y:=400.0},CursorTexture:=Textures.Needle,CursorHoverTexture:=Textures.Needle}
+    
+    MoveCursor<override>(NewPosition : vector2):void=
+        Cursor.SetPosition(NewPosition)
+
+    HoverCheckOverlapping(CursorPosition : vector2):[]ui_element=
+        profile("Overlapping hover check"):
+            var HoveredElements : []ui_element = array{}
+            for:
+                Element : UIElements
+            do:
+                if:
+                    Element.IsHovering[CursorPosition]
+                then:
+                    set HoveredElements += array{Element}
+
+            return HoveredElements
 
     Init<override>(Player : player):void=
         set Canvas = BuildCanvas()
 
+        # Change this to handle custom shapes
+        
+        Positions : [] vector2 = case (Shape):
+            shapes.Circle => GetCirclePositions()
+            shapes.Square => GetSquarePositions()
+            shapes.Triangle => GetTrianglePositions()
+            shapes.Star => GetStarPositions()
+            shapes.Custom => {
+                var AllPoints : []vector2 = array{}
+                for:
+                    Line : Lines
+                do:
+                    set AllPoints += DrawLine(Line.Start,Line.End, Line.Interval)
+                AllPoints
+            }
+
         set UIElements = for:
-            Position : GetCirclePositions()
+            Position : Positions
         do:
-            Square := cookie_outline_shape{Layer:=55,Size:=vector2{X:=40.0,Y:=40.0},Position:=Position}
+            Square := cookie_outline_shape{Layer:=55,Size:=SquareSize,Position:=Position}
             Canvas.AddWidget(
                 Square.GetCanvasSlot()
             )
+            set NumShapes += 1
             Square
 
         Canvas.AddWidget(
@@ -86,25 +143,137 @@ squid_game_cookie_menu := class(cursor_menu):
                 if:
                     Clicker = Player
                 then:
-                    CursorPosition := Cursor.GetPosition()
-                    HoveredElement := HoverCheck(CursorPosition)
-                    if:
-                        Element := HoveredElement?
-                    then:
-                        Element.OnClick()
-                        if:
-                            CookieElement := cookie_outline_shape[Element]
-                            set ClickedPoints[CookieElement] = true
-                        if:
-                            ClickedPoints.Length >= NumPoints - 1
-                        then:
-                            CompletedTrigger.Trigger(Clicker)
-                            break
-                    else:
-                        FailedTrigger.Trigger(Clicker)
-                        break
+                    spawn{Player.HoldHandler()}
 
-    GetCirclePositions()<transacts>:[]vector2=
+    (Player : player).HoldHandler()<suspends>:void=
+        race:
+            AwaitRemoval(Player)
+            loop:
+                Sleep(0.0)
+                CursorPosition := Cursor.GetPosition()
+                HoveredElements := HoverCheckOverlapping(CursorPosition)
+                # HoveredElement := HoverCheck(CursorPosition)
+                for:
+                    Element : HoveredElements
+                do:
+                    Element.OnClick()
+                    if:
+                        CookieElement := cookie_outline_shape[Element]
+                        set ClickedPoints[CookieElement] = true
+                    Print("Num Shapes {NumShapes} : PointsClicked : {ClickedPoints.Length}")
+                    if:
+                        ClickedPoints.Length >= NumShapes - 1
+                    then:
+                        CompletedTrigger.Trigger(Player)
+                        break
+                if:
+                    HoveredElements.Length = 0
+                then:
+                    FailedTrigger.Trigger(Player)
+                    break
+            loop:
+                ReleaseInfo := LeftClickInput.ReleasedEvent.Await()
+                if:
+                    ReleaseInfo(0) = Player
+                then:
+                    break
+                    
+
+    DrawLine(PointA : vector2, PointB :vector2, Interval : int):[]vector2=
+        var Points : []vector2 = array{}
+
+        X0 := if. Rounded := Round[PointA.X] then Rounded else 0
+        Y0 := if. Rounded := Round[PointA.Y] then Rounded else 0
+        X1 := if. Rounded := Round[PointB.X] then Rounded else 0
+        Y1 := if. Rounded := Round[PointB.Y] then Rounded else 0
+
+        Dx := Abs(X1 - X0)
+        Sx := if. X0 < X1 then 1 else -1
+        Dy := -Abs(Y1 - Y0)
+        Sy := if. Y0 < Y1 then 1 else -1
+
+        var Error : int = Dx + Dy
+
+        var Step : int = 0
+        var X : int = X0
+        var Y : int = Y0
+
+        loop:
+            if:
+                Mod[Step,Interval] = 0
+            then:
+                set Points += array{vector2{X:=X * 1.0,Y:=Y * 1.0}}
+            if:
+                X = X1 and Y = Y1
+            then:
+                break
+
+            E2 := 2 * Error
+
+            if:
+                E2 >= Dy
+            then:
+                set Error += Dy
+                set X += Sx
+
+            if:
+                E2 <= Dx
+            then:
+                set Error += Dx
+                set Y += Sy
+            set Step += 1
+
+        Points
+
+    GetStarPositions():[]vector2=
+        var AllPoints : []vector2 = array{}
+        OuterDistance : float = 400.0
+        InnerDistance : float = 150.0
+        Vertices :=for:
+            I := 0..10
+        do:
+            AngleDeg := 90.0 + I * 36.0
+            AngleRads := DegreesToRadians(AngleDeg)
+            R := if. Mod[I,2] = 0 then OuterDistance else InnerDistance
+            X := 960.0 + R * Cos(AngleRads)
+            Y := 540.0 + R * Sin(AngleRads)
+            vector2{X:=X,Y:=Y}
+
+        for:
+            Index -> Vertice : Vertices
+            NextVertice := Vertices[if. Index = Vertices.Length - 1 then 0 else Index + 1]
+        do:
+            Line := line{Start:=Vertice,End:=NextVertice}
+            set AllPoints += DrawLine(Line.Start,Line.End, Line.Interval)
+
+        AllPoints
+
+    GetTrianglePositions():[]vector2=
+        var AllPoints : []vector2 = array{}
+        for:
+            Line : array{
+                line{Start:=vector2{X:=960.0,Y:=840.0},End:=vector2{X:=660.0,Y:=240.0}}
+                line{Start:=vector2{X:=660.0,Y:=240.0},End:=vector2{X:=1260.0,Y:=240.0}}
+                line{Start:=vector2{X:=1260.0,Y:=240.0},End:=vector2{X:=960.0,Y:=840.0}}
+                }
+        do:
+            set AllPoints += DrawLine(Line.Start,Line.End, Line.Interval)
+        AllPoints
+
+    GetSquarePositions():[]vector2=
+        var AllPoints : []vector2 = array{}
+        for:
+            Line : array{
+                line{Start:=vector2{X:=660.0,Y:=840.0},End:=vector2{X:=1260.0,Y:=840.0}}
+                line{Start:=vector2{X:=1260.0,Y:=840.0},End:=vector2{X:=1260.0,Y:=240.0}}
+                line{Start:=vector2{X:=1260.0,Y:=240.0},End:=vector2{X:=660.0,Y:=240.0}}
+                line{Start:=vector2{X:=660.0,Y:=240.0},End:=vector2{X:=660.0,Y:=840.0}}
+                }
+        do:
+            set AllPoints += DrawLine(Line.Start,Line.End, Line.Interval)
+        AllPoints
+
+    GetCirclePositions():[]vector2=
         StepSize := (2 * PiFloat) / (NumPoints * 1.0)
         for:
             I := 0..NumPoints - 1
