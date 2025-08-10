@@ -34,11 +34,18 @@ squid_game_cookie_manager := class(creative_device):
                 
             spawn{CursorManager.HandleCursorMenu(Player,CookieGame)}
 
+    OnCompleted(MaybeAgent : ?agent):void=
+        if:
+            Agent := MaybeAgent?
+            Player := player[Agent]
+        then:
+            CursorManager.RemoveUIEvent.Signal(Player)
+            Print("agent completed the minigame")
+
     OnFailed(MaybeAgent : ?agent):void=
         if:
             Agent := MaybeAgent?
             Player := player[Agent]
         then:
-            # remove UI and cancel any waiting loops
             CursorManager.RemoveUIEvent.Signal(Player)
-            Print("agent failed I suppose")
+            Print("agent failed the minigame")

@@ -56,6 +56,8 @@ squid_game_cookie_menu := class(cursor_menu):
     CompletedTrigger : trigger_device
     FailedTrigger : trigger_device
 
+    var ClickedPoints : [cookie_outline_shape]logic = map{}
+
     Cursor<override> : needle_cursor = needle_cursor{Layer:=999,Size:=vector2{X:=400.0,Y:=400.0}}
 
     Init<override>(Player : player):void=
@@ -90,8 +92,17 @@ squid_game_cookie_menu := class(cursor_menu):
                         Element := HoveredElement?
                     then:
                         Element.OnClick()
+                        if:
+                            CookieElement := cookie_outline_shape[Element]
+                            set ClickedPoints[CookieElement] = true
+                        if:
+                            ClickedPoints.Length = NumPoints
+                        then:
+                            CompletedTrigger.Trigger(Clicker)
+                            break
                     else:
                         FailedTrigger.Trigger(Clicker)
+                        break
 
     GetCirclePositions()<transacts>:[]vector2=
         StepSize := (2 * PiFloat) / (NumPoints * 1.0)
