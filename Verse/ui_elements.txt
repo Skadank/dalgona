@@ -176,9 +176,9 @@ colored_shape := class<abstract>(ui_element):
 # A simple cursor element used throughout the demos
 cursor := class(ui_element):
    
-    CursorTexture : texture = Textures.CursorIcon
-    CursorHoverTexture : texture = Textures.CursorHoverIcon
-    var CursorTextureBlock : texture_block = texture_block{DefaultImage :=Textures.CursorIcon}
+    CursorTexture : texture = Textures.Needle
+    CursorHoverTexture : texture = Textures.Needle
+    var CursorTextureBlock : texture_block = texture_block{DefaultImage :=Textures.Needle}
 
     block:
         set CursorTextureBlock = texture_block{DefaultImage :=CursorTexture,DefaultDesiredSize:=Size}
@@ -203,5 +203,6 @@ cursor := class(ui_element):
         CursorTextureBlock.SetImage(CursorTexture)
 
     GetHoverAnimationState<override>():float=0.0
+
 
     SetHoverAnimationState<override>(State : float):void={}
