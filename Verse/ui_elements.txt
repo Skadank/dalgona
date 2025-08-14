@@ -183,6 +183,11 @@ cursor := class(ui_element):
     block:
         set CursorTextureBlock = texture_block{DefaultImage :=CursorTexture,DefaultDesiredSize:=Size}
 
+    SetPosition<override>(NewPosition : vector2):void=
+        set Position = NewPosition
+        PaddingX.SetDesiredSize(vector2{X:=NewPosition.X, Y:=1.0})
+        PaddingY.SetDesiredSize(vector2{X:=1.0, Y:=NewPosition.Y})
+
     GetCanvasSlot<override>():canvas_slot=
         SetPosition(Position)
         Result := Self.BuildCanvasSlot(CursorTextureBlock)
@@ -206,3 +211,4 @@ cursor := class(ui_element):
 
 
     SetHoverAnimationState<override>(State : float):void={}
+
